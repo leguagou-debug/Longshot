@@ -19,7 +19,6 @@ jobs:
       - name: 选择 Xcode
         run: |
           set -euo pipefail
-          # macos-14 runner 自带多个 Xcode，选最新可用的
           ls /Applications | grep -i '^Xcode' || true
           XC=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
           if [ -z "$XC" ]; then
@@ -39,11 +38,12 @@ jobs:
           xcodegen --version
 
       - name: 生成 Xcode 工程
-        working-directory: Longshot
         run: xcodegen generate
 
+      - name: 列出可用的模拟器
+        run: xcrun simctl list devices available | head -40
+
       - name: 编译
-        working-directory: Longshot
         run: |
           set -o pipefail
           xcodebuild build \
@@ -53,10 +53,9 @@ jobs:
             -configuration Debug \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            | tee build.log | tail -60
+            2>&1 | tee build.log | tail -80
 
       - name: 运行单元测试
-        working-directory: Longshot
         run: |
           set -o pipefail
           xcodebuild test \
@@ -67,11 +66,10 @@ jobs:
             -enableCodeCoverage NO \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            | tee test.log | tail -80
+            2>&1 | tee test.log | tail -100
 
       - name: 汇总测试结果
         if: always()
-        working-directory: Longshot
         run: |
           if [ -d TestResults.xcresult ]; then
             xcrun xcresulttool get test-results summary \
@@ -84,8 +82,8 @@ jobs:
         with:
           name: build-logs
           path: |
-            Longshot/build.log
-            Longshot/test.log
+            build.log
+            test.log
           if-no-files-found: ignore
 
   archive:
@@ -111,11 +109,9 @@ jobs:
           if ! command -v xcodegen >/dev/null 2>&1; then brew install xcodegen; fi
 
       - name: 生成工程
-        working-directory: Longshot
         run: xcodegen generate
 
       - name: 归档（不签名）
-        working-directory: Longshot
         run: |
           set -o pipefail
           xcodebuild archive \
@@ -127,10 +123,9 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            | tail -40
+            2>&1 | tail -40
 
       - name: 打成未签名 IPA
-        working-directory: Longshot
         run: |
           set -euo pipefail
           APP="build/Longshot.xcarchive/Products/Applications/Longshot.app"
@@ -148,5 +143,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Longshot-unsigned-ipa
-          path: Longshot/build/Longshot-unsigned.ipa
+          path: build/Longshot-unsigned.ipa
           if-no-files-found: error

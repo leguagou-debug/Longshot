@@ -175,11 +175,11 @@ final class LongshotEngineTests: XCTestCase {
             for r in stride(from: 0, to: o.keepEnd - o.keepStart, by: 3) {
                 let docY = i * expect.step + (o.keepStart + r - expect.top)
                 let outY = segTop + r
-                guard docY >= 0, docY < doc.height, outY < out.height else { continue }
+                guard docY >= 0, docY < doc.h, outY < out.h else { continue }
                 // 只比中间列，避开边缘
-                for x in stride(from: 60, to: out.width - 60, by: 17) {
-                    let a = out.px[outY * out.width + x]
-                    let b = doc.px[docY * doc.width + x]
+                for x in stride(from: 60, to: out.w - 60, by: 17) {
+                    let a = out.px[outY * out.w + x]
+                    let b = doc.px[docY * doc.w + x]
                     sum += Double(abs(Int(a) - Int(b)))
                     n += 1
                 }

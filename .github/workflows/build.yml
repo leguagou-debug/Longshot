@@ -40,8 +40,33 @@ jobs:
       - name: 生成 Xcode 工程
         run: xcodegen generate
 
-      - name: 列出可用的模拟器
-        run: xcrun simctl list devices available | head -40
+      # 不写死 "iPhone 15"：runner 镜像里的机型与系统版本会变
+      # （最新的 iOS 运行时往往没有 iPhone 15，写死会直接 "Unable to find a device"）。
+      # 这里挑最新运行时里最后一台可用的 iPhone。
+      - name: 解析可用的模拟器
+        id: sim
+        run: |
+          set -euo pipefail
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json,sys
+          d=json.load(sys.stdin)
+          cands=[]
+          for runtime,devs in d.get("devices",{}).items():
+              if "iOS" not in runtime: continue
+              for dev in devs:
+                  if dev.get("isAvailable") and "iPhone" in dev.get("name",""):
+                      cands.append((runtime,dev["udid"],dev["name"]))
+          cands.sort()
+          print(cands[-1][1] if cands else "")
+          ')
+          if [ -z "$UDID" ]; then
+            echo "::error::没有可用的 iPhone 模拟器"
+            xcrun simctl list devices available | head -40
+            exit 1
+          fi
+          echo "选定模拟器 UDID=$UDID"
+          xcrun simctl list devices available | grep -i "$UDID" || true
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
 
       - name: 编译
         run: |
@@ -49,11 +74,18 @@ jobs:
           xcodebuild build \
             -project Longshot.xcodeproj \
             -scheme Longshot \
-            -destination 'platform=iOS Simulator,name=iPhone 15' \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
             -configuration Debug \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            2>&1 | tee build.log | tail -80
+            2>&1 | tee build.log | tail -40
+          RC=${PIPESTATUS[0]}
+          if [ "$RC" -ne 0 ]; then
+            echo "============= 编译错误 ============="
+            grep -nE "error:" build.log | head -60 || true
+            echo "==================================="
+          fi
+          exit "$RC"
 
       - name: 运行单元测试
         run: |
@@ -61,12 +93,19 @@ jobs:
           xcodebuild test \
             -project Longshot.xcodeproj \
             -scheme Longshot \
-            -destination 'platform=iOS Simulator,name=iPhone 15' \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
             -resultBundlePath TestResults.xcresult \
             -enableCodeCoverage NO \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            2>&1 | tee test.log | tail -100
+            2>&1 | tee test.log | tail -60
+          RC=${PIPESTATUS[0]}
+          if [ "$RC" -ne 0 ]; then
+            echo "============= 测试失败详情 ============="
+            grep -nE "error:|XCTAssert|failed|Failure" test.log | head -60 || true
+            echo "======================================="
+          fi
+          exit "$RC"
 
       - name: 汇总测试结果
         if: always()
@@ -77,7 +116,7 @@ jobs:
           fi
 
       - name: 上传构建日志
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: build-logs
@@ -123,7 +162,14 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            2>&1 | tail -40
+            2>&1 | tee archive.log | tail -40
+          RC=${PIPESTATUS[0]}
+          if [ "$RC" -ne 0 ]; then
+            echo "============= 归档错误 ============="
+            grep -nE "error:" archive.log | head -60 || true
+            echo "==================================="
+          fi
+          exit "$RC"
 
       - name: 打成未签名 IPA
         run: |

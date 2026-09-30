@@ -1,0 +1,152 @@
+name: Build & Test
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: 编译 + 单元测试
+    runs-on: macos-14
+    timeout-minutes: 40
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 选择 Xcode
+        run: |
+          set -euo pipefail
+          # macos-14 runner 自带多个 Xcode，选最新可用的
+          ls /Applications | grep -i '^Xcode' || true
+          XC=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$XC" ]; then
+            echo "::error::未找到 Xcode"
+            exit 1
+          fi
+          echo "使用 $XC"
+          sudo xcode-select -s "$XC/Contents/Developer"
+          xcodebuild -version
+
+      - name: 安装 XcodeGen
+        run: |
+          set -euo pipefail
+          if ! command -v xcodegen >/dev/null 2>&1; then
+            brew install xcodegen
+          fi
+          xcodegen --version
+
+      - name: 生成 Xcode 工程
+        working-directory: Longshot
+        run: xcodegen generate
+
+      - name: 编译
+        working-directory: Longshot
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project Longshot.xcodeproj \
+            -scheme Longshot \
+            -destination 'platform=iOS Simulator,name=iPhone 15' \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            | tee build.log | tail -60
+
+      - name: 运行单元测试
+        working-directory: Longshot
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project Longshot.xcodeproj \
+            -scheme Longshot \
+            -destination 'platform=iOS Simulator,name=iPhone 15' \
+            -resultBundlePath TestResults.xcresult \
+            -enableCodeCoverage NO \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            | tee test.log | tail -80
+
+      - name: 汇总测试结果
+        if: always()
+        working-directory: Longshot
+        run: |
+          if [ -d TestResults.xcresult ]; then
+            xcrun xcresulttool get test-results summary \
+              --path TestResults.xcresult 2>/dev/null || true
+          fi
+
+      - name: 上传构建日志
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            Longshot/build.log
+            Longshot/test.log
+          if-no-files-found: ignore
+
+  archive:
+    name: 打包未签名 IPA（侧载用）
+    runs-on: macos-14
+    timeout-minutes: 40
+    needs: build
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 选择 Xcode
+        run: |
+          set -euo pipefail
+          XC=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+          sudo xcode-select -s "$XC/Contents/Developer"
+          xcodebuild -version
+
+      - name: 安装 XcodeGen
+        run: |
+          if ! command -v xcodegen >/dev/null 2>&1; then brew install xcodegen; fi
+
+      - name: 生成工程
+        working-directory: Longshot
+        run: xcodegen generate
+
+      - name: 归档（不签名）
+        working-directory: Longshot
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project Longshot.xcodeproj \
+            -scheme Longshot \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/Longshot.xcarchive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            | tail -40
+
+      - name: 打成未签名 IPA
+        working-directory: Longshot
+        run: |
+          set -euo pipefail
+          APP="build/Longshot.xcarchive/Products/Applications/Longshot.app"
+          if [ ! -d "$APP" ]; then
+            echo "::error::归档里没有 Longshot.app"
+            ls -R build/Longshot.xcarchive/Products || true
+            exit 1
+          fi
+          mkdir -p build/Payload
+          cp -R "$APP" build/Payload/
+          cd build && zip -qry Longshot-unsigned.ipa Payload
+          ls -lh Longshot-unsigned.ipa
+
+      - name: 上传 IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Longshot-unsigned-ipa
+          path: Longshot/build/Longshot-unsigned.ipa
+          if-no-files-found: error

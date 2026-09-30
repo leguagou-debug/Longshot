@@ -1,0 +1,24 @@
+# XcodeGen 生成物（由 CI 的 xcodegen generate 产出，不入库）
+*.xcodeproj/
+*.xcworkspace/
+
+# 构建产物
+build/
+DerivedData/
+*.ipa
+*.xcarchive
+*.xcresult
+build.log
+test.log
+
+# 本地探针脚本（静态审计用，非工程的一部分）
+_refcheck.js
+_chk2.js
+_syncheck.js
+
+# macOS
+.DS_Store
+
+# Xcode 用户态
+xcuserdata/
+*.xcuserstate

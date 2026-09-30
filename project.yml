@@ -1,0 +1,68 @@
+name: Longshot
+options:
+  bundleIdPrefix: app.longshot
+  # iOS 17：@Observable / @State 观察模型、ContentUnavailableView 等
+  # 都要求 17.0。降到 16 需要把全部 @Observable 改回 ObservableObject，
+  # 在多个 View 间替换 @State/@StateObject，改动面大且无收益。
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+    # 用 minimal 并发检查，避免 Swift 6 严格模式下的误报
+    SWIFT_STRICT_CONCURRENCY: minimal
+    CLANG_ENABLE_MODULES: YES
+
+targets:
+  Longshot:
+    type: application
+    platform: iOS
+    sources:
+      - path: Longshot
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.longshot.ios
+        PRODUCT_NAME: Longshot
+        INFOPLIST_FILE: Longshot/Resources/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_STYLE: Automatic
+        # 免费应用：不声明任何付费/内购能力
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: ""
+
+  LongshotTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: LongshotTests
+    dependencies:
+      - target: Longshot
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.longshot.tests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Longshot.app/Longshot"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+
+schemes:
+  Longshot:
+    build:
+      targets:
+        Longshot: all
+        LongshotTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      gatherCoverageData: false
+      targets:
+        - LongshotTests
+    archive:
+      config: Release

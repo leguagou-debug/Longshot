@@ -1,0 +1,8 @@
+# 统一用 LF：Windows 上编辑容易带入 CRLF，
+# 虽然 Swift 编译器能容忍，但会让 CI 日志与本地 diff 出现整文件差异。
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.ipa binary
+*.xcuserstate binary

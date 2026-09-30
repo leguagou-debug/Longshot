@@ -53,8 +53,11 @@ enum DemoMaker {
                 let sy = i * step
                 let sh = min(cvh, max(0, contentH - sy))
                 if sh > 0, let sub = doc?.cropping(to: CGRect(x: 0, y: sy, width: w, height: sh)) {
-                    // CG 原点在左下，所以内容从「顶部余白」处开始画
-                    cg.draw(sub, in: CGRect(x: 0, y: vh - topBar - sh, width: w, height: sh))
+                    // UIGraphicsImageRenderer 的上下文原点已在左上（y 向下），
+                    // 所以内容紧接状态栏下方开始画：状态栏 0..topBar，内容 topBar..topBar+sh，
+                    // 底部栏贴在 vh-bottomBar..vh。上一个版本在这里又翻转了一次，
+                    // 结果内容落到了屏幕下半部分、与底栏重叠。
+                    cg.draw(sub, in: CGRect(x: 0, y: topBar, width: w, height: sh))
                 }
                 paintTopBar(cg, w: w)
                 paintBottomBar(cg, w: w, vh: vh)
@@ -69,7 +72,10 @@ enum DemoMaker {
     // MARK: - 文档内容
 
     /// 画一段连续长文档。每段取不同句子，避免周期性。
-    private static func makeDocument(width w: Int, height h: Int) -> CGImage? {
+    ///
+    /// 单元测试要用同一份文档做「真值」比对，所以这里不能是 private ——
+    /// 测试若自己另画一份近似图案，逐像素比对就失去意义。
+    static func makeDocument(width w: Int, height h: Int) -> CGImage? {
         let format = UIGraphicsImageRendererFormat.default()
         format.scale = 1
         format.opaque = true
@@ -178,53 +184,46 @@ enum DemoMaker {
     /// 灵动岛很关键 —— 它让中段检测带有真正的内容，
     /// 也是固定状态栏能被识别出来的依据。
     static func paintTopBar(_ cg: CGContext, w: Int) {
-        cg.saveGState()
-        cg.translateBy(x: 0, y: CGFloat(viewportHeight))
-        cg.scaleBy(x: 1, y: -1)
-
+        // UIGraphicsImageRenderer 的上下文原点已经是左上、y 向下，
+        // 这里不要再翻转一次 —— 多翻一次会把状态栏画到屏幕底部。
         cg.setFillColor(UIColor(white: 0.969, alpha: 1).cgColor)
-        cg.fill(CGRect(x: 0, y: 0, width: w, height: topBar))
+        cg.fill(CGRect(x: 0, y: 0, width: CGFloat(w), height: CGFloat(topBar)))
 
         cg.setFillColor(UIColor.black.cgColor)
         // 灵动岛
-        let island = CGRect(x: Double(w) / 2 - 70, y: 22, width: 140, height: 34)
+        let island = CGRect(x: CGFloat(w) / 2 - 70, y: 22, width: 140, height: 34)
         cg.addPath(CGPath(roundedRect: island, cornerWidth: 17, cornerHeight: 17, transform: nil))
         cg.fillPath()
         // 时钟 / 电量
-        cg.addPath(CGPath(roundedRect: CGRect(x: 90, y: 62, width: 150, height: 34),
-                          cornerWidth: 6, cornerHeight: 6, transform: nil))
+        let clock = CGRect(x: 90, y: 62, width: 150, height: 34)
+        cg.addPath(CGPath(roundedRect: clock, cornerWidth: 6, cornerHeight: 6, transform: nil))
         cg.fillPath()
-        cg.addPath(CGPath(roundedRect: CGRect(x: Double(w) - 240, y: 62, width: 150, height: 34),
-                          cornerWidth: 6, cornerHeight: 6, transform: nil))
+        let battery = CGRect(x: CGFloat(w) - 240, y: 62, width: 150, height: 34)
+        cg.addPath(CGPath(roundedRect: battery, cornerWidth: 6, cornerHeight: 6, transform: nil))
         cg.fillPath()
-
-        cg.restoreGState()
     }
 
     /// 底部标签栏：顶部分隔线 + 中部选中图标 + home 指示条。
     /// 中部图标同样重要 —— 它让固定栏在检测带内有内容可比。
     static func paintBottomBar(_ cg: CGContext, w: Int, vh: Int) {
-        cg.saveGState()
-        cg.translateBy(x: 0, y: CGFloat(vh))
-        cg.scaleBy(x: 1, y: -1)
-
-        let y0 = vh - bottomBar
+        // 同上：不要再翻转。左上原点、y 向下，底栏就在 vh-bottomBar .. vh。
+        let y0 = CGFloat(vh - bottomBar)
         cg.setFillColor(UIColor(white: 0.98, alpha: 1).cgColor)
-        cg.fill(CGRect(x: 0, y: y0, width: w, height: bottomBar))
+        cg.fill(CGRect(x: 0, y: y0, width: CGFloat(w), height: CGFloat(bottomBar)))
         // 分隔线
         cg.setFillColor(UIColor(white: 0.88, alpha: 1).cgColor)
-        cg.fill(CGRect(x: 0, y: y0, width: w, height: 3))
+        cg.fill(CGRect(x: 0, y: y0, width: CGFloat(w), height: 3))
         // 中部选中图标（在 0.22~0.78 检测带内）
         cg.setFillColor(UIColor.black.cgColor)
         // 注意：x 用 Double、y 用 Int（y0 + 55）会同时不匹配 CGRect 的
         // Double 重载与 Int 重载，直接编译报错。统一显式写成 CGFloat。
-        let island2 = CGRect(x: CGFloat(w) / 2 - 52, y: CGFloat(y0) + 55,
+        let midIcon = CGRect(x: CGFloat(w) / 2 - 52, y: y0 + 55,
                              width: 104, height: 60)
-        cg.addPath(CGPath(roundedRect: island2, cornerWidth: 14, cornerHeight: 14, transform: nil))
+        cg.addPath(CGPath(roundedRect: midIcon, cornerWidth: 14, cornerHeight: 14, transform: nil))
         cg.fillPath()
         // 左侧项
         cg.setFillColor(UIColor(white: 0.55, alpha: 1).cgColor)
-        let leftItem = CGRect(x: CGFloat(w) * 0.30 - 40, y: CGFloat(y0) + 60,
+        let leftItem = CGRect(x: CGFloat(w) * 0.30 - 40, y: y0 + 60,
                               width: 80, height: 50)
         cg.addPath(CGPath(roundedRect: leftItem, cornerWidth: 12, cornerHeight: 12, transform: nil))
         cg.fillPath()
@@ -234,8 +233,6 @@ enum DemoMaker {
                              width: 320, height: 10)
         cg.addPath(CGPath(roundedRect: homeBar, cornerWidth: 5, cornerHeight: 5, transform: nil))
         cg.fillPath()
-
-        cg.restoreGState()
     }
 }
 

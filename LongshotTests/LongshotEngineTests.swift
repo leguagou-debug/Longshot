@@ -196,30 +196,17 @@ final class LongshotEngineTests: XCTestCase {
         XCTAssertLessThan(worstMAE, 5.0, "逐像素误差过大：MAE=\(worstMAE)")
     }
 
-    /// 生成与 DemoMaker 同源的参考文档（测试内部使用）
+    /// 生成与 DemoMaker 同源的参考文档（测试内部使用）。
+    ///
+    /// 必须复用 DemoMaker.makeDocument 本身 —— 这里以前是自己另画一份占位色块，
+    /// 与截图的真实内容无关，逐像素比对必然得出 MAE≈46 的假失败。
+    /// 真值必须是「同一份像素」。
     private func makeReferenceDocument(count: Int, step: Int) -> (px: [UInt8], w: Int, h: Int)? {
-        // 直接复用 DemoMaker 的文档绘制逻辑：重新生成一份稍大的文档，
-        // 取其内容区部分作为真值。
         let w = DemoMaker.width
         let cvh = DemoMaker.contentVisibleHeight
         let contentH = (count - 1) * step + Int(Double(cvh) * 0.78)
-
-        let format = UIGraphicsImageRendererFormat.default()
-        format.scale = 1
-        format.opaque = true
-        let img = UIGraphicsImageRenderer(size: CGSize(width: w, height: contentH),
-                                         format: format).image { ctx in
-            UIColor.white.setFill()
-            ctx.fill(CGRect(x: 0, y: 0, width: w, height: contentH))
-            ctx.cgContext.setFillColor(UIColor(white: 0.93, alpha: 1).cgColor)
-            // 用确定性图案占位：不做文本渲染，只保证与截图内容相关性
-            // 真正的像素比对依赖 DemoMaker 的绘制，这里退化为结构校验
-            for y in stride(from: 60, to: contentH - 60, by: 138) {
-                ctx.fill(CGRect(x: 72, y: y, width: w - 144, height: 34))
-            }
-        }
-        guard let c = img.cgImage else { return nil }
-        return grayPixels(c)
+        guard let doc = DemoMaker.makeDocument(width: w, height: contentH) else { return nil }
+        return grayPixels(doc)
     }
 
     // MARK: - 4. 渲染尺寸与边界

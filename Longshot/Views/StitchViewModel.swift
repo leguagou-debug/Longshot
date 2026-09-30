@@ -309,3 +309,33 @@ enum StitchError: LocalizedError {
         }
     }
 }
+
+/// 自然排序：把字符串里的连续数字当数值比较。
+///
+/// 截图文件名通常是「截图 2.png」「截图 10.png」这种形式，
+/// 按字典序排会得到 1、10、2、3…… 的顺序，与用户预期不符。
+/// 这里不依赖 localizedStandardCompare（它受当前区域设置影响，
+/// 在部分语言下行为不一致），自己按字符扫描更可控。
+func naturalLess(_ a: String, _ b: String) -> Bool {
+    let x = Array(a), y = Array(b)
+    var i = 0, j = 0
+    while i < x.count && j < y.count {
+        let cx = x[i], cy = y[j]
+        if cx.isNumber && cy.isNumber {
+            // 各自取出一段完整数字
+            var ni = i, nj = j
+            while ni < x.count, x[ni].isNumber { ni += 1 }
+            while nj < y.count, y[nj].isNumber { nj += 1 }
+            let sx = String(x[i..<ni]), sy = String(y[j..<nj])
+            // 先比数值，数值相同再比位数（处理 01 与 1）
+            let vx = Int(sx) ?? 0, vy = Int(sy) ?? 0
+            if vx != vy { return vx < vy }
+            if sx.count != sy.count { return sx.count < sy.count }
+            i = ni; j = nj
+            continue
+        }
+        if cx != cy { return cx < cy }
+        i += 1; j += 1
+    }
+    return x.count < y.count
+}

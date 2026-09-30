@@ -32,7 +32,7 @@ struct CropSheet: View {
                     Text("这张截图已被移除").foregroundStyle(.secondary)
                 }
             }
-            .navigationTitle(item.map { "第 \(index + 1) 张" } ?? "校准")
+            .navigationTitle(item.map { _ in "第 \(index + 1) 张" } ?? "校准")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

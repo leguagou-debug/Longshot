@@ -52,7 +52,7 @@ enum DemoMaker {
 
                 let sy = i * step
                 let sh = min(cvh, max(0, contentH - sy))
-                if sh > 0, let sub = doc.cropping(to: CGRect(x: 0, y: sy, width: w, height: sh)) {
+                if sh > 0, let sub = doc?.cropping(to: CGRect(x: 0, y: sy, width: w, height: sh)) {
                     // CG 原点在左下，所以内容从「顶部余白」处开始画
                     cg.draw(sub, in: CGRect(x: 0, y: vh - topBar - sh, width: w, height: sh))
                 }
@@ -216,21 +216,23 @@ enum DemoMaker {
         cg.fill(CGRect(x: 0, y: y0, width: w, height: 3))
         // 中部选中图标（在 0.22~0.78 检测带内）
         cg.setFillColor(UIColor.black.cgColor)
-        cg.addPath(CGPath(roundedRect: CGRect(x: Double(w) / 2 - 52, y: y0 + 55,
-                                              width: 104, height: 60),
-                          cornerWidth: 14, cornerHeight: 14, transform: nil))
+        // 注意：x 用 Double、y 用 Int（y0 + 55）会同时不匹配 CGRect 的
+        // Double 重载与 Int 重载，直接编译报错。统一显式写成 CGFloat。
+        let island2 = CGRect(x: CGFloat(w) / 2 - 52, y: CGFloat(y0) + 55,
+                             width: 104, height: 60)
+        cg.addPath(CGPath(roundedRect: island2, cornerWidth: 14, cornerHeight: 14, transform: nil))
         cg.fillPath()
         // 左侧项
         cg.setFillColor(UIColor(white: 0.55, alpha: 1).cgColor)
-        cg.addPath(CGPath(roundedRect: CGRect(x: Int(Double(w) * 0.30) - 40, y: y0 + 60,
-                                              width: 80, height: 50),
-                          cornerWidth: 12, cornerHeight: 12, transform: nil))
+        let leftItem = CGRect(x: CGFloat(w) * 0.30 - 40, y: CGFloat(y0) + 60,
+                              width: 80, height: 50)
+        cg.addPath(CGPath(roundedRect: leftItem, cornerWidth: 12, cornerHeight: 12, transform: nil))
         cg.fillPath()
         // home 指示条
         cg.setFillColor(UIColor(white: 0.16, alpha: 1).cgColor)
-        cg.addPath(CGPath(roundedRect: CGRect(x: Double(w) / 2 - 160, y: vh - 26,
-                                              width: 320, height: 10),
-                          cornerWidth: 5, cornerHeight: 5, transform: nil))
+        let homeBar = CGRect(x: CGFloat(w) / 2 - 160, y: CGFloat(vh) - 26,
+                             width: 320, height: 10)
+        cg.addPath(CGPath(roundedRect: homeBar, cornerWidth: 5, cornerHeight: 5, transform: nil))
         cg.fillPath()
 
         cg.restoreGState()

@@ -114,21 +114,26 @@ enum DemoMaker {
             // 不手动翻转：渲染器上下文已是左上原点、y 向下。
             // 文字统一走 UIKit 的绘制 API（坐标系同样是左上原点），
             // 避免与 CoreText / CTM 叠加后方向说不清而整体画反。
-            var y = 110
+            //
+            // 行距刻意「不固定」：若每段都是固定的 56 行距，文档就具有强周期性，
+            // 而屏间位移 step 一旦接近它的整数倍（例如 1233 ≈ 22×56），
+            // 每张屏的文字网格就几乎重合 —— 引擎面对多个等价匹配点必然歧义。
+            // 这里让行距随段落序号变化，破坏周期性。真实长文本来也不会等距。
+            var y = 0
             drawText("产品设计规范 v2.4", at: CGPoint(x: 72, y: y),
                      font: .systemFont(ofSize: 66, weight: .semibold),
                      color: UIColor(red: 0, green: 0.478, blue: 1, alpha: 1))
-            y += 110
+            y += 118
             drawText("最后更新 2026-10-01 · 内部资料", at: CGPoint(x: 72, y: y),
                      font: .systemFont(ofSize: 34), color: .gray)
-            y += 104
+            y += 96
 
             var hi = 0, pi = 0
             while y < h - 240 {
                 drawText(headings[hi % headings.count], at: CGPoint(x: 72, y: y),
                          font: .systemFont(ofSize: 50, weight: .semibold),
                          color: .black)
-                y += 84
+                y += 78 + (hi * 29) % 41
                 hi += 1
 
                 for _ in 0..<4 where y < h - 240 {
@@ -136,7 +141,7 @@ enum DemoMaker {
                     pi += 1
                     drawWrapped(text, x: 72, y: y, maxWidth: CGFloat(w - 150),
                                 font: .systemFont(ofSize: 36), color: UIColor(white: 0.24, alpha: 1))
-                    y += 56
+                    y += 46 + (pi * 23) % 43
                 }
 
                 cg.setStrokeColor(UIColor(white: 0.9, alpha: 1).cgColor)
@@ -144,7 +149,7 @@ enum DemoMaker {
                 cg.move(to: CGPoint(x: 72, y: y + 8))
                 cg.addLine(to: CGPoint(x: w - 72, y: y + 8))
                 cg.strokePath()
-                y += 96
+                y += 84 + (hi * 17) % 37
             }
         }.cgImage
     }

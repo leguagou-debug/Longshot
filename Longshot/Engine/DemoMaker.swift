@@ -167,7 +167,7 @@ enum DemoMaker {
             cg.setStrokeColor(UIColor(white: 0.82, alpha: 1).cgColor)
             cg.setLineWidth(3)
             cg.move(to: CGPoint(x: 72, y: CGFloat(h) - 24))
-            cg.addLine(to: CGPoint(x: w - 72, y: CGFloat(h) - 24))
+            cg.addLine(to: CGPoint(x: CGFloat(w - 72), y: CGFloat(h) - 24))
             cg.strokePath()
         }.cgImage
     }

@@ -59,7 +59,7 @@ enum DemoMaker {
                 let sh = min(cvh, max(0, contentH - sy))
                 if sh > 0, let sub = doc?.cropping(to: CGRect(x: 0, y: sy,
                                                              width: w, height: sh)) {
-                    cg.draw(sub, in: CGRect(x: 0, y: topBar,
+                    cg.draw(sub, in: CGRect(x: 0, y: CGFloat(topBar),
                                             width: CGFloat(w), height: CGFloat(sh)))
                 }
 

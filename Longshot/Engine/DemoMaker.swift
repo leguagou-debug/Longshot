@@ -54,13 +54,20 @@ enum DemoMaker {
                 cg.fill(CGRect(x: 0, y: 0, width: CGFloat(w), height: CGFloat(vh)))
 
                 // 内容区 = 视觉行 topBar .. topBar + sh；文档第 i*step 行对齐到 topBar。
-                // cropping 的 y 是「文档自顶向下」的坐标，与 CGImage 的行序一致。
+                //
+                // 必须用 UIImage.draw(in:)，不能用 cg.draw(_:in:)：
+                // CGContextDrawImage 会把图像的第 0 行放到矩形 maxY 处，
+                // 而渲染器上下文是翻转的（maxY 在视觉底部），
+                // 于是每张屏的文档带都被上下镜像 —— 内容永远对不上，
+                // 无论取哪个位移都匹配失败（实测真值位移处 score=12100）。
+                // UIImage.draw(in:) 会正确处理这个翻转。
                 let sy = i * step
                 let sh = min(cvh, max(0, contentH - sy))
                 if sh > 0, let sub = doc?.cropping(to: CGRect(x: 0, y: sy,
                                                              width: w, height: sh)) {
-                    cg.draw(sub, in: CGRect(x: 0, y: CGFloat(topBar),
-                                            width: CGFloat(w), height: CGFloat(sh)))
+                    UIImage(cgImage: sub).draw(in: CGRect(x: 0, y: CGFloat(topBar),
+                                                          width: CGFloat(w),
+                                                          height: CGFloat(sh)))
                 }
 
                 paintTopBar(cg, w: w)

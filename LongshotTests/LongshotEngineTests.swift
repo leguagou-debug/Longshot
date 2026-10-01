@@ -165,7 +165,8 @@ final class LongshotEngineTests: XCTestCase {
         let cB = Int((Double(c0) * inputs[1].k).rounded())
         print("DIAG scale: k=\(k) c0=\(c0) d0=\(d0) cA=\(cA) dA=\(dA) cB=\(cB) printH=\(inputs[0].print.height) srcH=\(inputs[0].height)")
 
-        let contentH = min(inputs[0].print.height - cA - dA, inputs[1].print.height - cB)        let sTrue = contentH - Int((Double(expect.step) * k).rounded())
+        let contentH = min(inputs[0].print.height - cA - dA, inputs[1].print.height - cB)
+        let sTrue = contentH - Int((Double(expect.step) * k).rounded())
         let sMax = Int(Double(contentH) * LongshotEngine.overlapMaxFrac)
         let sMin = max(6, Int((Double(contentH) * LongshotEngine.overlapMinFrac).rounded()))
         print("DIAG range: contentH=\(contentH) sMin=\(sMin) sMax=\(sMax) sTrue=\(sTrue) stepTruth=\(expect.step) cvh=\(DemoMaker.contentVisibleHeight)")

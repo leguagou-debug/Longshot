@@ -166,6 +166,20 @@ final class LongshotEngineTests: XCTestCase {
         }
         let res = LongshotEngine.findShift(inputs[0], inputs[1], cA: cA, dA: dA, cB: cB, sensitivity: 3)
         print("DIAG findShift: s=\(res.s) score=\(String(format: "%.2f", res.score)) low=\(res.low) dup=\(res.duplicate) flat=\(res.flat) contrast=\(String(format: "%.2f", res.contrast)) rows=\(res.rows) cands=\(Array(res.candidates.prefix(8)))")
+
+        // 逐张 plan 明细：定位总高偏差到底出在哪一段
+        if let p = LongshotEngine.makePlan(images: cgs, sensitivity: 3,
+                                           detectChromeEnabled: true,
+                                           trimTrailing: true,
+                                           useSmartMatch: true) {
+            for (i, o) in p.outputs.enumerated() {
+                print("DIAG plan[\(i)]: c=\(o.c) d=\(o.d) s=\(o.s) keepStart=\(o.keepStart) keepEnd=\(o.keepEnd) keepH=\(o.keepEnd - o.keepStart) feather=\(o.feather) low=\(o.lowConfidence)")
+            }
+            print("DIAG plan total=\(p.totalHeight) stepMedian=\(p.stepMedian) low=\(p.lowCount) dup=\(p.dupCount) srcH=\(cgs[0].height) topBar=\(expect.top) botBar=\(expect.bottom) truthStep=\(expect.step)")
+            // 末张尾部空白检测值，判断是否过度裁剪
+            let tb = LongshotEngine.trailingBlank(inputs[1], d: p.outputs[1].d)
+            print("DIAG trailingBlank(last)=\(tb)")
+        }
     }
 
     // MARK: - 1. 行指纹基本性质

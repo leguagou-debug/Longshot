@@ -131,6 +131,31 @@ final class LongshotEngineTests: XCTestCase {
         let chrome = LongshotEngine.estimateChrome(inputs, sensitivity: 3)
         print("DIAG chrome: topSrc=\(chrome.topSrc) botSrc=\(chrome.botSrc) | truth top=\(expect.top) bot=\(expect.bottom)")
 
+        // 底栏自底向上逐行扫描明细：真值底栏是 150 行，
+        // 打印最近 170 行的「两图是否相同 / 各行纹理」，
+        // 判断是「匹配提前中断」还是「有内容行数不够」导致 d 被低估。
+        do {
+            let pa = inputs[0].chromePrint, pb = inputs[1].chromePrint
+            let lim = min(pa.height, pb.height)
+            let maxScan = Int(Double(lim) * LongshotEngine.chromeLimit)
+            let thr = LongshotEngine.chromeThreshold(sensitivity: 3)
+            print("DIAG bot-scan: lim=\(lim) maxScan=\(maxScan) thr=\(String(format: "%.2f", thr)) k=\(inputs[0].k)")
+            var seen = 0, tex = 0
+            var yb = 1
+            var lastMatch = 0
+            while yb <= min(maxScan, 200) {
+                let ia = pa.height - yb, ib = pb.height - yb
+                let dist = rowDistance(pa, ia, pb, ib)
+                let tx = max(pa.rowTexture(ia), pb.rowTexture(ib))
+                if dist <= thr { seen += 1; lastMatch = yb; if tx > RowPrint.textureMin { tex += 1 } }
+                if yb % 5 == 1 || yb <= 12 {
+                    print("DIAG bot y=\(yb) dist=\(String(format: "%.1f", dist)) match=\(dist <= thr) tex=\(tx) seen=\(seen) texCnt=\(tex)")
+                }
+                yb += 1
+            }
+            print("DIAG bot-summary: seen=\(seen) texCnt=\(tex) lastMatch=\(lastMatch) needRows=\(LongshotEngine.minChromeRows) needTex=\(LongshotEngine.minChromeTex)")
+        }
+
         let cap = Int(Double(inputs[0].height) * 0.14)
         let c0 = max(0, min(cap, Int(chrome.topSrc.rounded())))
         let d0 = max(0, min(cap, Int(chrome.botSrc.rounded())))
@@ -140,8 +165,7 @@ final class LongshotEngineTests: XCTestCase {
         let cB = Int((Double(c0) * inputs[1].k).rounded())
         print("DIAG scale: k=\(k) c0=\(c0) d0=\(d0) cA=\(cA) dA=\(dA) cB=\(cB) printH=\(inputs[0].print.height) srcH=\(inputs[0].height)")
 
-        let contentH = min(inputs[0].print.height - cA - dA, inputs[1].print.height - cB)
-        let sTrue = contentH - Int((Double(expect.step) * k).rounded())
+        let contentH = min(inputs[0].print.height - cA - dA, inputs[1].print.height - cB)        let sTrue = contentH - Int((Double(expect.step) * k).rounded())
         let sMax = Int(Double(contentH) * LongshotEngine.overlapMaxFrac)
         let sMin = max(6, Int((Double(contentH) * LongshotEngine.overlapMinFrac).rounded()))
         print("DIAG range: contentH=\(contentH) sMin=\(sMin) sMax=\(sMax) sTrue=\(sTrue) stepTruth=\(expect.step) cvh=\(DemoMaker.contentVisibleHeight)")

@@ -136,14 +136,18 @@ enum DemoMaker {
             y += 96
 
             var hi = 0, pi = 0
-            while y < h - 240 {
+            // 画到文档最底：留 60 行写收尾分隔线，保证纹理一直延伸到末行。
+            // 若像早期版本那样在 h-240 处就停笔，文档自身底部会留一大段空白，
+            // 而「文档尾部留白」与「内容区尾部留白」在像素上无法区分 ——
+            // 尾部裁白会一路越过内容终点，把真实内容也裁掉。
+            while y < h - 60 {
                 drawText(headings[hi % headings.count], at: CGPoint(x: 72, y: y),
                          font: .systemFont(ofSize: 50, weight: .semibold),
                          color: .black)
                 y += 78 + (hi * 29) % 41
                 hi += 1
 
-                for _ in 0..<4 where y < h - 240 {
+                for _ in 0..<4 where y < h - 60 {
                     let text = paragraphs[pi % paragraphs.count]
                     pi += 1
                     drawWrapped(text, x: 72, y: y, maxWidth: CGFloat(w - 150),
@@ -158,6 +162,13 @@ enum DemoMaker {
                 cg.strokePath()
                 y += 84 + (hi * 17) % 37
             }
+            // 收尾：在文档最底部压一条分隔线，确保末行非空白，
+            // 这样「文档尾部」与「内容区白底」的分界是明确可判的。
+            cg.setStrokeColor(UIColor(white: 0.82, alpha: 1).cgColor)
+            cg.setLineWidth(3)
+            cg.move(to: CGPoint(x: 72, y: CGFloat(h) - 24))
+            cg.addLine(to: CGPoint(x: w - 72, y: CGFloat(h) - 24))
+            cg.strokePath()
         }.cgImage
     }
 

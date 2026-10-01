@@ -57,6 +57,47 @@ final class LongshotEngineTests: XCTestCase {
         return (r.image, plan)
     }
 
+    // MARK: - 0. 夹具自检
+    //
+    // 这一项不碰引擎，只验证「示例截图本身」是否真的是同一份文档的连续滚动。
+    // 有了它，几何出错时能立刻区分「夹具错」还是「引擎错」——
+    // 之前正是夹具把状态栏 / 内容画错了位置，却表现为引擎“识别不出重叠”。
+
+    func testFixtureGeometryIsConsistentScroll() throws {
+        let (images, expect) = DemoMaker.makeDemo(count: 3)
+        let cgs = images.map { cg($0) }
+        let grays = cgs.map { grayPixels($0) }
+        for (i, g) in grays.enumerated() {
+            XCTAssertEqual(g?.w, DemoMaker.width, "第 \(i + 1) 张宽度不符")
+            XCTAssertEqual(g?.h, DemoMaker.viewportHeight, "第 \(i + 1) 张高度不符")
+        }
+
+        // 相邻两张的内容区应逐像素相同，且相差 expect.step 行。
+        for i in 0..<(cgs.count - 1) {
+            let a = try XCTUnwrap(grays[i])
+            let b = try XCTUnwrap(grays[i + 1])
+            // 只看内容带中间的一条窄列，避开固定栏与边缘
+            var diff = 0.0
+            var n = 0
+            let colStep = 7
+            for r in stride(from: 0, to: DemoMaker.contentVisibleHeight - expect.step, by: 11) {
+                let ay = expect.top + r
+                let by = expect.top + r + expect.step
+                guard ay < a.h, by < b.h else { continue }
+                for x in stride(from: 40, to: a.w - 40, by: colStep) {
+                    let d = abs(Int(a.px[ay * a.w + x]) - Int(b.px[by * b.w + x]))
+                    diff += Double(d)
+                    n += 1
+                }
+            }
+            XCTAssertGreaterThan(n, 500, "采样点太少，夹具自检无效")
+            let mae = diff / Double(n)
+            // 完全相同的像素，MAE 应接近 0（允许 1 以内以吸收绘制噪声）
+            XCTAssertLessThan(mae, 2.0,
+                "第 \(i + 1) 与第 \(i + 2) 张不是相差 \(expect.step) 行的连续滚动（MAE=\(mae)）")
+        }
+    }
+
     // MARK: - 1. 行指纹基本性质
 
     func testRowPrintBasics() throws {

@@ -1,7 +1,6 @@
 import Foundation
 import UIKit
 import CoreGraphics
-import CoreText
 
 /// 生成「滚屏截图」示例，用于在没有真实截图时体验与自检。
 ///
@@ -44,21 +43,26 @@ enum DemoMaker {
             let format = UIGraphicsImageRendererFormat.default()
             format.scale = 1
             format.opaque = true
+            // 全程不手动翻转：UIGraphicsImageRenderer 的上下文原点已在左上、
+            // y 向下，draw(image:in:) 会自行把 CGImage 正着画出来。
+            // 之前这里是「渲染器已翻转 + 代码再翻一次」，状态栏被画到屏幕底部、
+            // 内容落点整体偏移，引擎因此找不到正确重叠（实测步长 2236 ≈ 内容全高）。
             let img = UIGraphicsImageRenderer(size: CGSize(width: w, height: vh),
                                              format: format).image { ctx in
                 let cg = ctx.cgContext
                 cg.setFillColor(UIColor.white.cgColor)
-                cg.fill(CGRect(x: 0, y: 0, width: w, height: vh))
+                cg.fill(CGRect(x: 0, y: 0, width: CGFloat(w), height: CGFloat(vh)))
 
+                // 内容区 = 视觉行 topBar .. topBar + sh；文档第 i*step 行对齐到 topBar。
+                // cropping 的 y 是「文档自顶向下」的坐标，与 CGImage 的行序一致。
                 let sy = i * step
                 let sh = min(cvh, max(0, contentH - sy))
-                if sh > 0, let sub = doc?.cropping(to: CGRect(x: 0, y: sy, width: w, height: sh)) {
-                    // UIGraphicsImageRenderer 的上下文原点已在左上（y 向下），
-                    // 所以内容紧接状态栏下方开始画：状态栏 0..topBar，内容 topBar..topBar+sh，
-                    // 底部栏贴在 vh-bottomBar..vh。上一个版本在这里又翻转了一次，
-                    // 结果内容落到了屏幕下半部分、与底栏重叠。
-                    cg.draw(sub, in: CGRect(x: 0, y: topBar, width: w, height: sh))
+                if sh > 0, let sub = doc?.cropping(to: CGRect(x: 0, y: sy,
+                                                             width: w, height: sh)) {
+                    cg.draw(sub, in: CGRect(x: 0, y: topBar,
+                                            width: CGFloat(w), height: CGFloat(sh)))
                 }
+
                 paintTopBar(cg, w: w)
                 paintBottomBar(cg, w: w, vh: vh)
             }
@@ -107,24 +111,23 @@ enum DemoMaker {
                 "多语言场景预留 30% 的文案膨胀空间，避免出现挤压或换行错位。"
             ]
 
-            // CG 原点在左下，从上往下画需要翻转
-            cg.translateBy(x: 0, y: CGFloat(h))
-            cg.scaleBy(x: 1, y: -1)
-
+            // 不手动翻转：渲染器上下文已是左上原点、y 向下。
+            // 文字统一走 UIKit 的绘制 API（坐标系同样是左上原点），
+            // 避免与 CoreText / CTM 叠加后方向说不清而整体画反。
             var y = 110
             drawText("产品设计规范 v2.4", at: CGPoint(x: 72, y: y),
                      font: .systemFont(ofSize: 66, weight: .semibold),
-                     color: UIColor(red: 0, green: 0.478, blue: 1, alpha: 1), cg: cg)
+                     color: UIColor(red: 0, green: 0.478, blue: 1, alpha: 1))
             y += 110
             drawText("最后更新 2026-10-01 · 内部资料", at: CGPoint(x: 72, y: y),
-                     font: .systemFont(ofSize: 34), color: .gray, cg: cg)
+                     font: .systemFont(ofSize: 34), color: .gray)
             y += 104
 
             var hi = 0, pi = 0
             while y < h - 240 {
                 drawText(headings[hi % headings.count], at: CGPoint(x: 72, y: y),
                          font: .systemFont(ofSize: 50, weight: .semibold),
-                         color: .black, cg: cg)
+                         color: .black)
                 y += 84
                 hi += 1
 
@@ -132,8 +135,7 @@ enum DemoMaker {
                     let text = paragraphs[pi % paragraphs.count]
                     pi += 1
                     drawWrapped(text, x: 72, y: y, maxWidth: CGFloat(w - 150),
-                                font: .systemFont(ofSize: 36), color: UIColor(white: 0.24, alpha: 1),
-                                cg: cg)
+                                font: .systemFont(ofSize: 36), color: UIColor(white: 0.24, alpha: 1))
                     y += 56
                 }
 
@@ -147,35 +149,21 @@ enum DemoMaker {
         }.cgImage
     }
 
-    /// 单行文本（已翻转坐标系，按左上原点处理）
+    /// 单行文本。左上原点，y 向下。
     private static func drawText(_ s: String, at p: CGPoint, font: UIFont,
-                                 color: UIColor, cg: CGContext) {
+                                 color: UIColor) {
         let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]
-        let str = NSAttributedString(string: s, attributes: attrs)
-        cg.saveGState()
-        cg.translateBy(x: p.x, y: p.y)
-        cg.scaleBy(x: 1, y: -1)   // 文字本身不能再翻转
-        let line = CTLineCreateWithAttributedString(str)
-        cg.textPosition = .zero
-        CTLineDraw(line, cg)
-        cg.restoreGState()
+        (s as NSString).draw(at: p, withAttributes: attrs)
     }
 
-    /// 按宽度自动折行
+    /// 按宽度自动折行。左上原点，y 向下。
     private static func drawWrapped(_ s: String, x: Int, y: Int, maxWidth: CGFloat,
-                                    font: UIFont, color: UIColor, cg: CGContext) {
+                                    font: UIFont, color: UIColor) {
         let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]
-        let str = NSAttributedString(string: s, attributes: attrs)
-        let framesetter = CTFramesetterCreateWithAttributedString(str)
-        let path = CGPath(rect: CGRect(x: CGFloat(x), y: 0, width: maxWidth, height: 200), transform: nil)
-        let frame = CTFramesetterCreateFrame(framesetter,
-                                            CFRangeMake(0, 0), path, nil)
-        cg.saveGState()
-        cg.translateBy(x: 0, y: CGFloat(y))
-        cg.scaleBy(x: 1, y: -1)
-        cg.textMatrix = .identity
-        CTFrameDraw(frame, cg)
-        cg.restoreGState()
+        let rect = CGRect(x: CGFloat(x), y: CGFloat(y),
+                          width: maxWidth, height: 200)
+        (s as NSString).draw(with: rect, options: [.usesLineFragmentOrigin],
+                             attributes: attrs, context: nil)
     }
 
     // MARK: - 固定栏
